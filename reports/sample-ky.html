@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sample $9 Audit: sindresorhus/ky (v2.2.0) | RepoRoast</title>
+  <meta name="description" content="Complete sample $9 RepoRoast audit of sindresorhus/ky v2.2.0: edge-case analysis, source/core/Ky.ts findings, custom AGENTS.md, and runnable AVA regression suite.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="../">
+        <span class="brand-mark">RepoRoast</span>
+        <span class="brand-sub">Sample $9 Deep Codebase Audit</span>
+      </a>
+      <nav class="topnav">
+        <a href="../">Live scanner</a>
+        <a href="../#offers">Commission a $9 audit</a>
+        <a href="../pack.html">Agent Engineering Pack</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="shell">
+    <article class="report-article">
+      <div style="font-family:var(--font-mono);font-size:0.82rem;color:var(--slate-muted);margin-bottom:8px;">
+        Target: <code>sindresorhus/ky</code> · Version audited: <code>v2.2.0</code> (branch <code>main</code>) · Agent-Readiness Score: <strong>80 / 100</strong>
+      </div>
+      <h1>Deep Codebase Audit: <code>sindresorhus/ky</code></h1>
+      <p class="lead">
+        This is an unedited example of what a <strong>$9 RepoRoast Deep Codebase Audit</strong> delivers: implementation-level behavioral findings with exact <code>file:line</code> citations, a repository-specific <code>AGENTS.md</code> replacement, and a runnable regression test file.
+      </p>
+
+      <h2>1. Implementation &amp; Behavioral Findings</h2>
+
+      <div class="finding-box">
+        <div>
+          <span class="finding-severity sev-p1">P1 Behavioral Footgun</span>
+          <strong><code>Retry-After</code> exceeding remaining total timeout sleeps the dead budget and erases <code>HTTPError(429)</code></strong>
+        </div>
+        <p style="font-size:0.9rem;color:var(--ink-body);margin:10px 0;">
+          <strong>Location:</strong> <code>source/core/Ky.ts:1128-1140</code>, interacting with <code>source/core/retry-timing.ts:26-29, 152-164</code> and <code>source/utils/normalize.ts:30</code>.
+        </p>
+        <p style="font-size:0.9rem;color:var(--ink-body);margin:10px 0;">
+          <strong>Mechanism:</strong> Under Ky v2's default 10,000 ms total timeout, suppose an API responds in 50 ms with <code>HTTP 429</code> and a routine <code>Retry-After: 60</code> header (60,000 ms). In <code>#retryFromError</code> (<code>source/core/Ky.ts:1137-1140</code>):
+        </p>
+        <pre class="code-block">// source/core/Ky.ts:1136-1140
+// If waiting would consume all remaining budget, time out without starting another request.
+if (retryDelay &gt;= remainingTimeout) {
+	await delay(remainingTimeout, delayOptions);
+	throw new TimeoutError(this.#sentRequest);
+}</pre>
+        <p style="font-size:0.9rem;color:var(--ink-body);margin:10px 0 0;">
+          <strong>Impact (two distinct failure modes):</strong><br>
+          1. <em>Dead wait + lost diagnostic context:</em> Even though Ky already knows at <code>t = 50ms</code> that <code>60_000 &gt;= 9_950</code> and no second request will ever be attempted, it blocks the caller for the remaining <strong>9.95 seconds</strong> doing nothing and then throws <code>TimeoutError</code>—discarding the <code>HTTPError</code>, its <code>429</code> status code, and the rate-limit response body/headers.<br>
+          2. <em>24.8-day fiber hang when <code>timeout: false</code>:</em> If a caller disables total timeout (<code>timeout: false</code>) and a reverse proxy misconfigures <code>Retry-After: 1793491200</code> (sending a UNIX epoch instead of delta-seconds, which <code>retry-timing.ts:28</code> treats as seconds via <code>allowTimestamp: false</code>), default <code>maxRetryAfter</code> is <code>Infinity</code>, so <code>Ky.ts:1128</code> clamps to <code>maxSafeTimeout</code> (<code>2_147_483_647</code> ms) and sleeps the Promise for <strong>24.85 days</strong> unless the caller also explicitly set <code>retry.maxRetryAfter</code>.
+        </p>
+      </div>
+
+      <div class="finding-box">
+        <div>
+          <span class="finding-severity sev-p2">P2 Header Precedence Edge Case</span>
+          <strong>Unparseable or whitespace-padded <code>Retry-After</code> blocks fallback to valid <code>RateLimit-Reset</code></strong>
+        </div>
+        <p style="font-size:0.9rem;color:var(--ink-body);margin:10px 0;">
+          <strong>Location:</strong> <code>source/core/retry-timing.ts:3, 25-49</code> and <code>source/core/Ky.ts:738-744</code>.
+        </p>
+        <p style="font-size:0.9rem;color:var(--ink-body);margin:10px 0 0;">
+          <strong>Details:</strong> <code>getRetryTimingHeader</code> returns immediately whenever <code>headers.get('Retry-After') !== null</code>—even if <code>Retry-After</code> is empty (<code>""</code>) or malformed—preventing inspection of a valid <code>RateLimit-Reset</code> header on the same response, falling straight back to exponential backoff (<code>Ky.ts:743</code>). While L31 notes <code>Retry-After</code> is authoritative when present, any coding agent asked to "add fallback rate-limit header support" is highly likely to alter this precedence unless explicitly documented in <code>AGENTS.md</code>.
+        </p>
+      </div>
+
+      <div class="finding-box">
+        <div>
+          <span class="finding-severity sev-p2">P2 Agent Context Hazard</span>
+          <strong>53.4 KB monolith in <code>source/core/Ky.ts</code> + 1-paragraph <code>AGENTS.md</code> without single-file test commands</strong>
+        </div>
+        <p style="font-size:0.9rem;color:var(--ink-body);margin:10px 0 0;">
+          <strong>Details:</strong> The current <code>AGENTS.md</code> (622 bytes) documents only the <code>null</code> vs <code>undefined</code> convention. Meanwhile, <code>npm test</code> runs four sequential gates (<code>xo &amp;&amp; npm run build &amp;&amp; tsc --project tsconfig.test.json &amp;&amp; ava</code>), and <code>source/core/Ky.ts</code> is 53,421 bytes (~1,450 lines). Coding agents without explicit single-file AVA instructions repeatedly run the full build+lint+type+browser matrix on every edit, burning 5–8x tokens and risking accidental regressions across <code>replaceSymbol</code> (<code>Symbol.for('ky.replaceOption')</code>) and <code>deletedParametersSymbol</code> on <code>URLSearchParams</code>.
+        </p>
+      </div>
+
+      <h2>2. Tailored Drop-In <code>AGENTS.md</code> for <code>sindresorhus/ky</code></h2>
+      <p style="font-size:0.92rem;color:var(--ink-body);">
+        Preserves Sindre's exact strict-<code>undefined</code> rule verbatim while adding fast-loop AVA verification, build prerequisites, and subtle cross-module contracts discovered in <code>source/</code>:
+      </p>
+      <pre class="code-block"># Conventions &amp; Agent Engineering Guide
+
+## Strict `undefined` Policy (Critical)
+- `null` is not an accepted value anywhere in this project. Options, hook lists, arguments and hook state all use `undefined` to mean absent, and passing `null` is a mistake that should be reported as one rather than quietly treated as `undefined`.
+- Do not add `null`-tolerant branches, do not widen a type to include `null`, and do not default a `null` parameter to another value. When a caller can plausibly write `null`, the fix is a clear error that names the option, not a fallback.
+- The one exception is the `signal` option, which accepts `null` for `RequestInit` compatibility and treats it as absent.
+
+## Fast Verification Commands (Node &gt;= 22)
+- Run a single AVA test file during iteration: `npx ava test/retry.ts`
+- Run a specific test by title: `npx ava test/retry.ts -m '*Retry-After*'`
+- Check type tests (`tsd` / test tsconfig): `npx tsc --project tsconfig.test.json`
+- Lint &amp; style (`xo`): `npx xo`
+- Full pre-PR gate (required before finishing): `npm test` (`xo &amp;&amp; npm run build &amp;&amp; tsc --project tsconfig.test.json &amp;&amp; ava`)
+
+## Architectural Invariants (Do Not Break)
+- **Unbound `fetch` invocation (`source/utils/timeout.ts:32-33`):** Always extract `const {fetch} = options; fetch(...)` rather than calling `options.fetch(...)` so native browser `window.fetch` never receives `options` as `this` ("Illegal invocation").
+- **Cross-copy symbol identity (`source/utils/merge.ts:7`):** `replaceOption` uses `Symbol.for('ky.replaceOption')` intentionally so duplicated dependency copies recognize markers; never change it to an unregistered `Symbol()`.
+- **`URLSearchParams` deletion tracking (`source/utils/merge.ts:100-109`):** `cloneShallow` and `cloneSearchParameters` must preserve `deletedParametersSymbol` sets so `init` hooks do not resurrect deleted query params.
+- **Retry timing precedence (`source/core/retry-timing.ts:25-49`):** `Retry-After` is authoritative over `RateLimit-Reset` when present, and UNIX epoch interpretation (`&gt;= 1_000_000_000`) is enabled only on reset headers (`allowTimestamp: true`), never on `Retry-After`.
+- **Editing `source/core/Ky.ts` (53 KB):** Inspect targeted line ranges around `#retryFromError`, `#calculateRetryDelay`, and `#fetch` rather than regenerating whole-file replacements.</pre>
+
+      <h2>3. Runnable AVA Edge-Case Suite (<code>test/retry-timing-edge-cases.ts</code>)</h2>
+      <p style="font-size:0.92rem;color:var(--ink-body);">
+        Drop into <code>test/</code> and run via <code>npx ava test/retry-timing-edge-cases.ts</code> to lock down retry-header precedence, leap-second IMF dates, RFC 850 50-year century rollover, and budget-exhaustion behavior:
+      </p>
+      <pre class="code-block">import test from 'ava';
+import {
+	calculateRetryTimingDelay,
+	getRetryTimingHeader,
+} from '../source/core/retry-timing.js';
+
+test('Retry-After takes precedence over RateLimit-Reset even when Retry-After is malformed', t =&gt; {
+	const headers = new Headers({
+		'Retry-After': 'not-a-valid-delay',
+		'RateLimit-Reset': String(Math.floor(Date.now() / 1000) + 5),
+	});
+
+	const header = getRetryTimingHeader(headers);
+	t.deepEqual(header, {value: 'not-a-valid-delay', allowTimestamp: false});
+	t.is(calculateRetryTimingDelay(header!), undefined);
+});
+
+test('Retry-After numeric value above 1e9 is treated as delta-seconds, not UNIX epoch', t =&gt; {
+	const futureEpoch = Math.floor(Date.now() / 1000) + 10;
+
+	const retryAfterHeader = getRetryTimingHeader(new Headers({'Retry-After': String(futureEpoch)}))!;
+	const resetHeader = getRetryTimingHeader(new Headers({'RateLimit-Reset': String(futureEpoch)}))!;
+
+	const retryAfterMs = calculateRetryTimingDelay(retryAfterHeader)!;
+	const resetMs = calculateRetryTimingDelay(resetHeader)!;
+
+	t.true(retryAfterMs &gt;= futureEpoch * 1000);
+	t.true(resetMs &gt;= 0 &amp;&amp; resetMs &lt;= 15_000);
+});
+
+test('IMF-fixdate leap second (:60) parses without Date.UTC overflow rejection', t =&gt; {
+	const header = getRetryTimingHeader(
+		new Headers({'Retry-After': 'Wed, 31 Dec 2098 23:59:60 GMT'}),
+	)!;
+	const delayMs = calculateRetryTimingDelay(header);
+	t.is(typeof delayMs, 'number');
+	t.true(Number.isFinite(delayMs) &amp;&amp; delayMs! &gt; 0);
+});
+
+test('calendar overflow date (31 Feb) is rejected cleanly as undefined', t =&gt; {
+	const header = getRetryTimingHeader(
+		new Headers({'Retry-After': 'Wed, 31 Feb 2028 12:00:00 GMT'}),
+	)!;
+	t.is(calculateRetryTimingDelay(header), undefined);
+});</pre>
+
+      <div style="margin-top:28px;padding:18px 20px;background:var(--faema-tint);border-radius:5px;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:14px;">
+        <div>
+          <strong>Want this exact depth on your own repository?</strong>
+          <div style="font-size:0.88rem;color:var(--ink-body);">Commission a $9 Deep Codebase Audit (or grab the $5 Agent Engineering Pack) and help buy John's espresso cup.</div>
+        </div>
+        <a class="btn-primary" href="../#offers">Commission $9 audit</a>
+      </div>
+    </article>
+  </main>
+</body>
+</html>

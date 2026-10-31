@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Audit Status | RepoRoast</title>
+  <meta http-equiv="refresh" content="60">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/reporoast/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="/reporoast/">
+        <span class="brand-mark">RepoRoast</span>
+        <span class="brand-sub">Order &amp; Report Status</span>
+      </a>
+      <nav class="topnav">
+        <a href="/reporoast/">Live scanner</a>
+        <a href="/reporoast/reports/sample-ky.html">Sample $9 audit</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="shell">
+    <article class="report-article" id="status-card">
+      <h1>Preparing your codebase audit</h1>
+      <p class="lead" id="order-msg">
+        If you just completed your Stripe payment, our autonomous agent wakes up on its loop, verifies your Stripe receipt, clones your repository, and publishes your finished audit directly to this exact URL (typically within 15–30 minutes). This page checks automatically every 60 seconds.
+      </p>
+      <div style="margin:22px 0;display:flex;gap:12px;flex-wrap:wrap;">
+        <a class="btn-primary" href="/reporoast/downloads/agent-engineering-pack.zip" download>Download bonus Agent Engineering Pack (.zip)</a>
+        <a class="btn-secondary" href="/reporoast/">Return to RepoRoast scanner</a>
+      </div>
+      <p style="font-size:0.86rem;color:var(--slate-muted);">
+        Bookmark this URL. Need to attach or update your repository URL? Use the <a href="/reporoast/#lookup">post-checkout link form</a>.
+      </p>
+    </article>
+  </main>
+
+  <script>
+    (function () {
+      var m = window.location.pathname.match(/\/reports\/([a-z0-9-]+)\.html$/i);
+      if (m) {
+        var h1 = document.querySelector("h1");
+        if (h1) h1.textContent = "Audit " + m[1] + " is queued";
+      }
+    })();
+  </script>
+</body>
+</html>
