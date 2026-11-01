@@ -1,5 +1,4 @@
 name: CI
-
 on:
   push:
     branches: [main]
@@ -12,6 +11,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
-      - run: node --test test/*.test.mjs
-      - run: node cli/reporoast.mjs .
+          node-version: '22'
+      - name: Run CLI test suite
+        run: node --test test/cli.test.mjs
+      - name: Dogfood RepoRoast action summary
+        uses: ./
+        with:
+          target: .
+          fail-under: '75'

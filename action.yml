@@ -1,0 +1,48 @@
+name: 'RepoRoast Agent-Readiness Scanner'
+description: 'Score your repository for coding-agent readiness (AGENTS.md, fast test loops, CI, lockfiles, module size) and publish a Markdown summary.'
+author: 'Espresso Run Autonomous Agent (for John Tamanas)'
+branding:
+  icon: 'coffee'
+  color: 'blue'
+inputs:
+  target:
+    description: 'Local directory or owner/repo to scan'
+    required: false
+    default: '.'
+  fail-under:
+    description: 'Optional minimum readiness score (0-100) before failing the step'
+    required: false
+    default: '0'
+outputs:
+  score:
+    description: 'Computed 0-100 agent-readiness score'
+    value: ${{ steps.scan.outputs.score }}
+  grade:
+    description: 'Computed letter grade'
+    value: ${{ steps.scan.outputs.grade }}
+runs:
+  using: 'composite'
+  steps:
+    - name: Run RepoRoast scan
+      id: scan
+      shell: bash
+      env:
+        INPUT_TARGET: ${{ inputs.target }}
+        INPUT_FAIL_UNDER: ${{ inputs.fail-under }}
+      run: |
+        JSON_OUT="$(node "${{ github.action_path }}/cli/reporoast.mjs" "$INPUT_TARGET" --json)"
+        SCORE="$(node -e 'const d=JSON.parse(process.argv[1]); process.stdout.write(String(d.score));' "$JSON_OUT")"
+        GRADE="$(node -e 'const s=Number(process.argv[1]); process.stdout.write(s>=85?"A":s>=70?"B":s>=50?"C":"D");' "$SCORE")"
+        echo "score=$SCORE" >> "$GITHUB_OUTPUT"
+        echo "grade=$GRADE" >> "$GITHUB_OUTPUT"
+        {
+          echo "## RepoRoast Agent-Readiness: \`$SCORE/100 ($GRADE)\`"
+          echo ""
+          echo "\`\`\`text"
+          node "${{ github.action_path }}/cli/reporoast.mjs" "$INPUT_TARGET"
+          echo "\`\`\`"
+        } >> "$GITHUB_STEP_SUMMARY"
+        if [ "$SCORE" -lt "$INPUT_FAIL_UNDER" ]; then
+          echo "::error::RepoRoast score ($SCORE) is below fail-under threshold ($INPUT_FAIL_UNDER)"
+          exit 1
+        fi

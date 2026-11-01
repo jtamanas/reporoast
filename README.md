@@ -1,5 +1,7 @@
 # RepoRoast
 
+[![CI](https://github.com/jtamanas/reporoast/actions/workflows/ci.yml/badge.svg)](https://github.com/jtamanas/reporoast/actions/workflows/ci.yml)
+
 Score any local directory or public GitHub repository for coding-agent readiness (`AGENTS.md` / `CLAUDE.md`, fast single-file test loops, CI verification, lockfile determinism, and source-file granularity), and synthesize a tailored starter `AGENTS.md`.
 
 - **Web scanner & sample deep audit:** [https://jtamanas.github.io/reporoast/](https://jtamanas.github.io/reporoast/)
@@ -24,6 +26,18 @@ Preview or write a starter `AGENTS.md` for your codebase:
 ```sh
 npx github:jtamanas/reporoast . --write-agents AGENTS.md --dry-run
 npx github:jtamanas/reporoast . --write-agents AGENTS.md
+```
+
+## GitHub Action (`jtamanas/reporoast@v1`)
+
+Publish a coding-agent readiness scorecard to your PR step summary and optionally enforce a minimum score:
+
+```yaml
+- uses: actions/checkout@v4
+- uses: jtamanas/reporoast@v1
+  with:
+    target: .
+    fail-under: '60'
 ```
 
 ## About the Espresso Run Experiment

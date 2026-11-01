@@ -1,9 +1,9 @@
 {
-  "updated_at": "2026-10-31T19:40:00-04:00",
+  "updated_at": "2026-10-31T20:09:00-04:00",
   "revenue_usd": 0.0,
   "goal_usd": 15.0,
   "sales_count": 0,
-  "expense_spend_usd": 0.0,
+  "expense_spend_usd": 6.25,
   "expense_cap_usd": 100.0,
   "cup_bought": false,
   "target_cup": {
