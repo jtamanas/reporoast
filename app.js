@@ -360,8 +360,11 @@
         </div>
         <div style="margin-top:14px;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;padding:12px;background:var(--faema-tint);border-radius:4px;font-size:0.88rem;">
           <span>Want our live agent to read <strong>${meta.name}</strong>'s implementation files for real bugs, timeouts, and a custom test suite?</span>
-          <a href="#offers" class="btn-primary" style="padding:8px 13px;font-size:0.85rem;">Order $9 deep audit</a>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button type="button" id="scan-instant-audit-btn" class="btn-primary" style="padding:8px 13px;font-size:0.85rem;">Pay $9 on Stripe &amp; audit ${meta.name} →</button>
+          </div>
         </div>
+        <div id="scan-audit-confirm" class="status-callout" style="margin-top:8px;" hidden></div>
       `;
       const codeEl = document.getElementById("generated-agents-code");
       if (codeEl) codeEl.textContent = report.starterAgents;
@@ -375,6 +378,35 @@
               copyBtn.textContent = "Copy AGENTS.md";
             }, 1800);
           });
+        });
+      }
+
+      const instantAuditBtn = document.getElementById("scan-instant-audit-btn");
+      if (instantAuditBtn) {
+        instantAuditBtn.addEventListener("click", () => {
+          const orderId = makeOrderId("ord");
+          const repoUrl = `https://github.com/${meta.full_name}`;
+          sendSignal(ORDER_TOPIC, {
+            order_id: orderId,
+            tier: "audit_9_scan",
+            amount_cents: 900,
+            repo: repoUrl,
+            buyer: "Stripe Checkout",
+          });
+          sendSignal(TELEMETRY_TOPIC, { type: "checkout_click", tier: "audit_9_scan", order_id: orderId, repo: repoUrl });
+          saveOrder({ order_id: orderId, tier_label: "$9 Audit", repo: repoUrl });
+          const confirmBox = document.getElementById("scan-audit-confirm");
+          if (confirmBox) {
+            confirmBox.hidden = false;
+            const reportUrl = new URL(`reports/${orderId}.html`, window.location.href).href;
+            confirmBox.innerHTML = `
+              <strong>Order ${orderId} reserved for <code>${meta.full_name}</code>!</strong><br>
+              1. Complete your $9 payment in the Stripe tab.<br>
+              2. Bookmark your report URL (publishes ~15–30 min after Stripe confirmation): <a href="reports/${orderId}.html" target="_blank"><code>${reportUrl}</code></a><br>
+              3. Instant bonus: <a href="downloads/agent-engineering-pack.zip" download>Download the 15-file Agent Engineering Pack (.zip)</a> right now.
+            `;
+          }
+          window.open(`${STRIPE_BASE}?__prefilled_amount=900&client_reference_id=${orderId}`, "_blank", "noopener");
         });
       }
     } catch (err) {
@@ -410,6 +442,39 @@
       });
     });
 
+    // Hero 1-click checkout buttons
+    document.querySelectorAll(".hero-quick-buy").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const tier = btn.getAttribute("data-tier") || "shot_3";
+        const cents = Number(btn.getAttribute("data-cents") || 300);
+        const prefix = cents >= 1500 ? "cup" : cents >= 900 ? "ord" : "pack";
+        const orderId = makeOrderId(prefix);
+        const currentRepo = (document.getElementById("roast-repo")?.value || document.getElementById("repo-input")?.value || "sindresorhus/ky").trim();
+
+        sendSignal(TELEMETRY_TOPIC, { type: "checkout_click", tier: `hero_${tier}`, order_id: orderId, repo: currentRepo });
+        sendSignal(ORDER_TOPIC, {
+          order_id: orderId,
+          tier: `hero_${tier}`,
+          amount_cents: cents,
+          repo: currentRepo,
+          buyer: "Hero 1-Click",
+        });
+        saveOrder({ order_id: orderId, tier_label: `$${(cents / 100).toFixed(0)} (${tier})`, repo: currentRepo });
+
+        const box = document.getElementById("hero-quick-unlocked");
+        if (box) {
+          box.hidden = false;
+          const reportUrl = new URL(`reports/${orderId}.html`, window.location.href).href;
+          box.innerHTML = `
+            <strong>Order ${orderId} unlocked!</strong> Complete your $${(cents / 100).toFixed(0)} Stripe checkout in the new tab.<br>
+            • Instant download: <a href="downloads/agent-engineering-pack.zip" download><strong>Agent Engineering Pack (.zip)</strong></a><br>
+            • Order / Backer status URL: <a href="reports/${orderId}.html" target="_blank"><code>reports/${orderId}.html</code></a> (or link your repo/URL in <a href="#lookup">Order Lookup</a> below).
+          `;
+        }
+        window.open(`${STRIPE_BASE}?__prefilled_amount=${cents}&client_reference_id=${orderId}`, "_blank", "noopener");
+      });
+    });
+
     // Tier 1: $5 Pack
     const packBtn = document.getElementById("buy-pack-btn");
     if (packBtn) {
@@ -417,15 +482,13 @@
         const backer = (document.getElementById("pack-backer")?.value || "").trim();
         const orderId = makeOrderId("pack");
         sendSignal(TELEMETRY_TOPIC, { type: "checkout_click", tier: "pack_5", order_id: orderId });
-        if (backer) {
-          sendSignal(ORDER_TOPIC, {
-            order_id: orderId,
-            tier: "pack_5",
-            amount_cents: 500,
-            buyer: backer,
-            repo: "Agent Engineering Pack",
-          });
-        }
+        sendSignal(ORDER_TOPIC, {
+          order_id: orderId,
+          tier: "pack_5",
+          amount_cents: 500,
+          buyer: backer || "Stripe Checkout",
+          repo: backer || "Agent Engineering Pack",
+        });
         const unlocked = document.getElementById("pack-unlocked");
         if (unlocked) unlocked.hidden = false;
         window.open(`${STRIPE_BASE}?__prefilled_amount=500&client_reference_id=${orderId}`, "_blank", "noopener");
@@ -437,8 +500,9 @@
     if (roastForm) {
       roastForm.addEventListener("submit", (e) => {
         e.preventDefault();
-        const repo = document.getElementById("roast-repo").value.trim();
-        const buyer = document.getElementById("roast-buyer").value.trim();
+        const fallbackRepo = (document.getElementById("repo-input")?.value || "sindresorhus/ky").trim();
+        const repo = document.getElementById("roast-repo").value.trim() || fallbackRepo;
+        const buyer = document.getElementById("roast-buyer").value.trim() || "Stripe Checkout";
         const focus = document.getElementById("roast-focus").value.trim();
         const orderId = makeOrderId("ord");
 
@@ -469,24 +533,25 @@
       });
     }
 
-    // Tier 3: $16 Full Cup Patron
+    // Tier 3: $15 Full Cup Patron
     const cupForm = document.getElementById("order-cup-form");
     if (cupForm) {
       cupForm.addEventListener("submit", (e) => {
         e.preventDefault();
-        const repo = document.getElementById("cup-repo").value.trim();
-        const buyer = document.getElementById("cup-buyer").value.trim();
+        const fallbackRepo = (document.getElementById("repo-input")?.value || "supporter").trim();
+        const repo = document.getElementById("cup-repo").value.trim() || fallbackRepo;
+        const buyer = document.getElementById("cup-buyer").value.trim() || "Stripe Checkout";
         const orderId = makeOrderId("cup");
 
         sendSignal(ORDER_TOPIC, {
           order_id: orderId,
-          tier: "cup_16",
-          amount_cents: 1600,
+          tier: "cup_15",
+          amount_cents: 1500,
           repo,
           buyer,
         });
-        sendSignal(TELEMETRY_TOPIC, { type: "checkout_click", tier: "cup_16", order_id: orderId, repo });
-        saveOrder({ order_id: orderId, tier_label: "$16 Full Cup Patron", repo });
+        sendSignal(TELEMETRY_TOPIC, { type: "checkout_click", tier: "cup_15", order_id: orderId, repo });
+        saveOrder({ order_id: orderId, tier_label: "$15 Full Cup Patron", repo });
 
         const box = document.getElementById("cup-confirm");
         if (box) {
@@ -494,12 +559,12 @@
           const reportUrl = new URL(`reports/${orderId}.html`, window.location.href).href;
           box.innerHTML = `
             <strong>Thank you — Patron order ${orderId} queued!</strong><br>
-            1. Complete your $16 payment in the Stripe tab to fund the entire espresso cup.<br>
+            1. Complete your $15 payment in the Stripe tab to fund the entire espresso cup.<br>
             2. Bookmark your report &amp; test-patch URL: <a href="reports/${orderId}.html" target="_blank"><code>${reportUrl}</code></a><br>
             3. Instant bonus: <a href="downloads/agent-engineering-pack.zip" download>Download the Agent Engineering Pack (.zip)</a>.
           `;
         }
-        window.open(`${STRIPE_BASE}?__prefilled_amount=1600&client_reference_id=${orderId}`, "_blank", "noopener");
+        window.open(`${STRIPE_BASE}?__prefilled_amount=1500&client_reference_id=${orderId}`, "_blank", "noopener");
       });
     }
 

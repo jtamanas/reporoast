@@ -107,17 +107,38 @@
           </div>
           <div>
             <dt>Experiment spend</dt>
-            <dd id="exp-spend">$0.00 of $100.00</dd>
+            <dd id="exp-spend">$6.25 of $100.00</dd>
           </div>
           <div>
             <dt>Deadline</dt>
-            <dd>2026-11-11</dd>
+            <dd>2026-11-11 (4 days left)</dd>
           </div>
           <div>
             <dt>Cup ordered</dt>
             <dd id="cup-status">Not yet</dd>
           </div>
         </dl>
+
+        <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-subtle);">
+          <div style="font-size: 0.8rem; font-weight: 600; margin-bottom: 8px; color: var(--ink-strong);">
+            1-click Stripe checkout (instant pack + backer link):
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+            <button type="button" class="btn-secondary hero-quick-buy" data-tier="shot_3" data-cents="300" style="padding: 7px 8px; font-size: 0.78rem;">
+              ☕ $3 Shot + Pack
+            </button>
+            <button type="button" class="btn-secondary hero-quick-buy" data-tier="pack_5" data-cents="500" style="padding: 7px 8px; font-size: 0.78rem;">
+              ⚡ $5 Pack + Link
+            </button>
+            <button type="button" class="btn-primary hero-quick-buy" data-tier="audit_9" data-cents="900" style="padding: 7px 8px; font-size: 0.78rem;">
+              🔍 $9 Repo Audit
+            </button>
+            <button type="button" class="btn-secondary hero-quick-buy" data-tier="cup_15" data-cents="1500" style="padding: 7px 8px; font-size: 0.78rem;">
+              🏆 $15 Full Cup
+            </button>
+          </div>
+          <div id="hero-quick-unlocked" class="status-callout" style="margin-top: 8px; font-size: 0.78rem;" hidden></div>
+        </div>
 
         <div id="backers-section" style="margin-top: 14px;" hidden>
           <div style="font-size: 0.82rem; font-weight: 600; margin-bottom: 6px;">Verified backers</div>
@@ -139,7 +160,7 @@
     <section id="offers" class="section-block" aria-labelledby="offers-heading">
       <h2 id="offers-heading">Commission an audit or grab the engineering pack</h2>
       <p class="section-intro">
-        Payments go directly through John's Stripe checkout (Apple Pay, card, or Cash App Pay). Every dollar is verified against Stripe receipts and logged publicly toward the espresso cup.
+        Payments go directly through John's Stripe checkout (Apple Pay, Google Pay, Link, or card). Every dollar is verified against Stripe receipts and logged publicly toward the espresso cup.
       </p>
 
       <div class="tiers-grid">
@@ -150,26 +171,26 @@
               <span class="tier-price">$5</span>
               <span class="tier-turnaround">Instant browser download</span>
             </div>
-            <h3>Agent Engineering Pack</h3>
-            <p>Working on a private company codebase? Grab our drop-in agent harness kit and put a shot in the espresso cup.</p>
+            <h3>Agent Engineering Pack + Backer Link</h3>
+            <p>Working on a private company codebase? Grab our drop-in agent harness kit, put a shot in the espresso cup, and list your project on the backer wall.</p>
             <ul class="tier-features">
               <li>8 stack-specific <code>AGENTS.md</code> blueprints (TS/Vitest, Next.js App Router, Python/uv, FastAPI, Go, Rust, Turborepo, Agent CLIs)</li>
               <li>5 reusable <code>SKILL.md</code> workflows (root-cause diagnosis, TDD, dual-axis PR review, deep-module refactor, CLI ergonomics)</li>
               <li>Git <code>pre-commit</code> secret &amp; 16-digit card guard</li>
-              <li>Verified credit on the Espresso Run ledger</li>
+              <li>Permanent verified backer credit + do-follow link on the Espresso Run ledger</li>
             </ul>
           </div>
 
           <div>
             <div class="intake-fields">
               <label>
-                Optional name or handle for the backer ledger
-                <input type="text" id="pack-backer" placeholder="e.g. @alex or acme.dev">
+                Optional name, handle, or URL for the backer ledger
+                <input type="text" id="pack-backer" placeholder="e.g. @alex or https://acme.dev">
               </label>
             </div>
             <button type="button" id="buy-pack-btn" class="btn-secondary" style="width: 100%;">Pay $5 on Stripe &amp; unlock pack</button>
             <div id="pack-unlocked" class="status-callout" hidden>
-              <strong>Pack unlocked.</strong> Complete your $5 payment in the Stripe tab, and download your files right now:
+              <strong>Pack unlocked.</strong> Complete your payment in the Stripe tab, and download your files right now:
               <div style="margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap;">
                 <a class="btn-primary" href="downloads/agent-engineering-pack.zip" download>Download .zip (15 files)</a>
                 <a class="btn-secondary" href="pack.html">Browse files online</a>
@@ -199,11 +220,11 @@
             <div class="intake-fields">
               <label>
                 Public GitHub repository URL
-                <input type="text" id="roast-repo" placeholder="https://github.com/owner/repo" required>
+                <input type="text" id="roast-repo" placeholder="https://github.com/owner/repo">
               </label>
               <label>
-                Name or email prefix used on Stripe (to match receipt)
-                <input type="text" id="roast-buyer" placeholder="e.g. Jane Doe or jane@" required>
+                Optional name or email prefix on Stripe (to match receipt)
+                <input type="text" id="roast-buyer" placeholder="e.g. Jane Doe or jane@">
               </label>
               <label>
                 Optional focus area (module, PR, or concern)
@@ -215,11 +236,11 @@
           </form>
         </article>
 
-        <!-- Tier 3: $16 Buy the Whole Cup -->
+        <!-- Tier 3: $15 Buy the Whole Cup -->
         <article class="tier-card">
           <div>
             <div class="tier-price-row">
-              <span class="tier-price">$16</span>
+              <span class="tier-price">$15</span>
               <span class="tier-turnaround">Priority ~15–30 min</span>
             </div>
             <h3>Full Cup Patron + Multi-Module Test Patch</h3>
@@ -228,22 +249,22 @@
               <li>Everything in the $9 Deep Codebase Audit &amp; custom <code>AGENTS.md</code></li>
               <li>Multi-file runnable edge-case test suite + downloadable <code>git apply</code> patch verified locally</li>
               <li>Includes the $5 Agent Engineering Pack immediately</li>
-              <li>Permanent top credit as the patron who bought John's espresso cup</li>
+              <li>Permanent top credit + link as the patron who bought John's espresso cup</li>
             </ul>
           </div>
 
           <form id="order-cup-form">
             <div class="intake-fields">
               <label>
-                Public GitHub repository URL (or "supporter only")
-                <input type="text" id="cup-repo" placeholder="https://github.com/owner/repo" required>
+                Public GitHub repository URL (or project URL for patron link)
+                <input type="text" id="cup-repo" placeholder="https://github.com/owner/repo">
               </label>
               <label>
-                Name or handle for top patron credit &amp; receipt match
-                <input type="text" id="cup-buyer" placeholder="e.g. @yourhandle or Name" required>
+                Optional name or handle for top patron credit
+                <input type="text" id="cup-buyer" placeholder="e.g. @yourhandle or Name">
               </label>
             </div>
-            <button type="submit" class="btn-secondary" style="width: 100%;">Fund the cup ($16 on Stripe)</button>
+            <button type="submit" class="btn-secondary" style="width: 100%;">Fund the whole cup ($15 on Stripe)</button>
             <div id="cup-confirm" class="status-callout" hidden></div>
           </form>
         </article>
