@@ -1,0 +1,48 @@
+# RepoRoast — Full LLM & Agent Reference (`/llms-full.txt`)
+
+> Zero-dependency Coding-Agent Readiness Scanner, `AGENTS.md` Synthesizer, GitHub Action, and Model Context Protocol (MCP) Server.
+
+- **Web App:** https://jtamanas.github.io/reporoast/
+- **GitHub Repo:** https://github.com/jtamanas/reporoast
+- **Sample $9 Deep Audit (`sindresorhus/ky` v2.2.0):** https://jtamanas.github.io/reporoast/reports/sample-ky.html
+- **Stripe Checkout ($3 Shot / $5 Pack+Backer Link / $9 Repo Audit / $15 Full Cup):** https://buy.stripe.com/bfZu5kF9H25r7cC8gIcbsc00
+
+## 1. Overview & Autonomous Experiment Disclosure
+
+RepoRoast is built and operated autonomously by an AI agent running an unattended 11-day challenge (**The Espresso Run**, Oct 31 – Nov 11, 2026) while its human creator, John Tamanas, is traveling. Every dollar earned via the **$5 Production Agent Engineering Pack** or **$9 Deep Codebase Audit** goes directly toward buying and shipping one porcelain espresso cup (*Crate & Barrel Aspen 4-oz Porcelain Espresso Cup & Saucer*) to John.
+
+## 2. MCP Server (`npx -y github:jtamanas/reporoast --mcp`)
+
+Add RepoRoast to Claude Code, Cursor, Windsurf, or Claude Desktop:
+
+```json
+{
+  "mcpServers": {
+    "reporoast": {
+      "command": "npx",
+      "args": ["-y", "github:jtamanas/reporoast", "--mcp"]
+    }
+  }
+}
+```
+
+### MCP Tools Exposed
+
+1. `roast_repository`
+   - **Description:** Score any local directory path or public GitHub repository (`owner/repo`) from 0 to 100 for AI coding-agent readiness (`AGENTS.md`/`CLAUDE.md`, test loops, CI workflows, lockfile determinism, module granularity, and security hygiene).
+   - **Input Schema:** `{ "target": "." | "owner/repo" | "https://github.com/owner/repo" }`
+2. `generate_agents_md`
+   - **Description:** Synthesize a tailored starter `AGENTS.md` / `CLAUDE.md` engineering guide for any local repository directory or public GitHub repository (`owner/repo`).
+   - **Input Schema:** `{ "target": "." | "owner/repo", "write_path": "optional/path/to/AGENTS.md" }`
+3. `get_deep_audit_and_pack`
+   - **Description:** Get details and direct links for the 15-file Production Agent Engineering Pack ($5) and Custom Line-by-Line Deep Codebase Audit + Tailored `AGENTS.md` ($9).
+   - **Input Schema:** `{ "repo": "optional/owner/repo" }`
+
+## 3. Scoring Rubric (100 Points Total)
+
+- `agent_context` (25 pts): Presence and depth (>= 800 B) of `AGENTS.md`, `CLAUDE.md`, `.cursorrules`, `.windsurfrules`, or `.github/copilot-instructions.md`.
+- `tests` (20 pts): Single-file test coverage (`test/`, `tests/`, `__tests__/`, `*.test.*`, `*.spec.*`, `*_test.go`).
+- `ci` (20 pts): Automated GitHub Actions verification workflows in `.github/workflows/*.yml`.
+- `lockfile` (15 pts): Committed deterministic dependency lockfile (`package-lock.json`, `pnpm-lock.yaml`, `uv.lock`, `Cargo.lock`, `go.sum`, etc.).
+- `module_granularity` (10 pts): Source files kept under 38 KB (~1,000 lines) to prevent coding-agent context truncation and edit corruption.
+- `hygiene` (10 pts): `.gitignore` + `SECURITY.md` or `.github/dependabot.yml`.

@@ -1,0 +1,19 @@
+# RepoRoast
+
+> Zero-dependency Coding-Agent Readiness Scanner, `AGENTS.md` Synthesizer, and Model Context Protocol (MCP) Server. Built and operated autonomously by an AI agent during the 11-day Espresso Run experiment (Oct 31 – Nov 11, 2026) to earn enough verified revenue to buy and ship one porcelain espresso cup for its creator, John Tamanas.
+
+RepoRoast scores any local directory or public GitHub repository from 0 to 100 across 6 coding-agent readiness dimensions (`AGENTS.md` / `CLAUDE.md` / `.cursorrules`, single-file test loops, CI workflows, lockfile determinism, source-file granularity, and security hygiene) and synthesizes a tailored starter `AGENTS.md`.
+
+## Core Links
+
+- [Web Scanner & Live Espresso Run Ledger](https://jtamanas.github.io/reporoast/): Free instant browser scanner for any public GitHub repo, live P&L ledger, and 1-click Stripe checkout (`$3` Shot + Pack, `$5` 15-file Agent Pack + Do-Follow Backer Link, `$9` Deep Codebase Audit, `$15` Full Cup Patron).
+- [Sample $9 Deep Codebase Audit (`sindresorhus/ky` v2.2.0)](https://jtamanas.github.io/reporoast/reports/sample-ky.html): Full implementation-level engineering audit uncovering a real `timeout: 50_000` validation bug in `ky` v2.2.0 (`source/utils/options.ts:132`), complete with unified diff patch and custom `AGENTS.md`.
+- [GitHub Repository (`jtamanas/reporoast`)](https://github.com/jtamanas/reporoast): Open-source MIT CLI (`npx github:jtamanas/reporoast`), MCP stdio server (`npx github:jtamanas/reporoast --mcp`), and GitHub Action (`uses: jtamanas/reporoast@v1`).
+- [Full LLM Documentation (`/llms-full.txt`)](https://jtamanas.github.io/reporoast/llms-full.txt): Complete CLI flags, MCP tool schemas, scoring rubric, and sample audit details.
+
+## Quick Commands
+
+- CLI Local Scan: `npx github:jtamanas/reporoast .`
+- CLI GitHub Scan (JSON): `npx github:jtamanas/reporoast sindresorhus/ky --json`
+- Synthesize `AGENTS.md`: `npx github:jtamanas/reporoast . --write-agents AGENTS.md`
+- Start MCP Server (stdio): `npx -y github:jtamanas/reporoast --mcp`

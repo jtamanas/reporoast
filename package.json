@@ -1,11 +1,25 @@
 {
   "name": "reporoast",
-  "version": "1.0.0",
-  "description": "Score any local directory or GitHub repository for AI coding-agent readiness and synthesize a starter AGENTS.md.",
+  "version": "1.2.0",
+  "description": "MCP server & CLI to score any local directory or GitHub repository for AI coding-agent readiness and synthesize a starter AGENTS.md.",
   "type": "module",
   "bin": {
-    "reporoast": "./cli/reporoast.mjs"
+    "reporoast": "./cli/reporoast.mjs",
+    "reporoast-mcp": "./cli/reporoast.mjs"
   },
+  "scripts": {
+    "test": "node --test test/cli.test.mjs"
+  },
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "model-context-protocol",
+    "agents-md",
+    "claude-code",
+    "cursor",
+    "coding-agents",
+    "llms-txt"
+  ],
   "engines": {
     "node": ">=18"
   },

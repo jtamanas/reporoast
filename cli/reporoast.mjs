@@ -6,6 +6,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import readline from "node:readline";
 
 const EXIT_OK = 0;
 const EXIT_RUNTIME = 1;
@@ -15,6 +16,7 @@ const EXIT_AUTH_OR_LIMIT = 4;
 
 const HELP = `Usage:
   reporoast <target> [options]
+  reporoast --mcp
 
 Targets:
   . | /path/to/repo              Scan a local repository directory (works on private repos)
@@ -22,6 +24,7 @@ Targets:
   https://github.com/owner/repo  Scan a public GitHub repository URL
 
 Options:
+  --mcp                  Run as a Model Context Protocol (MCP) stdio server for Claude Code, Cursor & Windsurf
   --json                 Emit structured JSON on stdout (diagnostics go to stderr)
   --emit-agents          Print a starter AGENTS.md tailored to the target on stdout
   --write-agents <path>  Write generated starter AGENTS.md to <path> (fails if exists unless --force)
@@ -44,11 +47,13 @@ Examples:
   npx github:jtamanas/reporoast .
   npx github:jtamanas/reporoast sindresorhus/ky --json
   npx github:jtamanas/reporoast . --write-agents AGENTS.md --dry-run
+  npx github:jtamanas/reporoast --mcp
 `;
 
 function parseArgs(argv) {
   const opts = {
     target: null,
+    mcp: path.basename(process.argv[1] || "").includes("mcp"),
     json: false,
     emitAgents: false,
     writeAgents: null,
@@ -62,6 +67,8 @@ function parseArgs(argv) {
     const arg = argv[i];
     if (arg === "-h" || arg === "--help") {
       opts.help = true;
+    } else if (arg === "--mcp") {
+      opts.mcp = true;
     } else if (arg === "--json") {
       opts.json = true;
     } else if (arg === "--emit-agents") {
@@ -280,6 +287,179 @@ function scoreRepository(name, shortName, blobs) {
   return { target: name, files_scanned: blobs.length, score, max_score: 100, checks, starterAgents };
 }
 
+async function resolveTargetInfo(target, timeoutMs) {
+  if (target === "." || target.startsWith("./") || target.startsWith("/") || fs.existsSync(target)) {
+    const resolved = path.resolve(target);
+    if (!fs.existsSync(resolved) || !fs.statSync(resolved).isDirectory()) {
+      throw Object.assign(new Error(`Local directory not found: ${resolved}`), { code: EXIT_NOT_FOUND });
+    }
+    const blobs = walkLocalDir(resolved);
+    return { name: resolved, shortName: path.basename(resolved), blobs };
+  }
+  const slug = parseGithubSlug(target);
+  if (!slug) {
+    throw Object.assign(
+      new Error(`Target '${target}' is neither an existing directory nor a valid 'owner/repo' slug.`),
+      { code: EXIT_USAGE }
+    );
+  }
+  return await fetchGithubTree(slug, timeoutMs);
+}
+
+const MCP_TOOLS = [
+  {
+    name: "roast_repository",
+    description:
+      "Score any local directory path or public GitHub repository (owner/repo) from 0 to 100 for AI coding-agent readiness (AGENTS.md/CLAUDE.md, test loops, CI workflows, lockfile determinism, module granularity, and security hygiene).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        target: {
+          type: "string",
+          description: "Local directory path (e.g. '.') or public GitHub repository ('owner/repo' or full GitHub URL).",
+        },
+      },
+      required: ["target"],
+    },
+  },
+  {
+    name: "generate_agents_md",
+    description:
+      "Synthesize a tailored starter AGENTS.md / CLAUDE.md engineering guide for any local repository directory or public GitHub repository (owner/repo).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        target: {
+          type: "string",
+          description: "Local directory path (e.g. '.') or public GitHub repository ('owner/repo').",
+        },
+        write_path: {
+          type: "string",
+          description: "Optional local file path to write the generated AGENTS.md to.",
+        },
+      },
+      required: ["target"],
+    },
+  },
+  {
+    name: "get_deep_audit_and_pack",
+    description:
+      "Get details and links for the 15-file Production Agent Engineering Pack ($5) and Custom Line-by-Line Deep Codebase Audit + Tailored AGENTS.md ($9) from the live Espresso Run autonomous agent experiment.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        repo: {
+          type: "string",
+          description: "Optional repository slug or URL to include in the audit request.",
+        },
+      },
+    },
+  },
+];
+
+function runMcpServer(timeoutMs) {
+  const rl = readline.createInterface({ input: process.stdin, terminal: false });
+  const send = (obj) => process.stdout.write(JSON.stringify(obj) + "\n");
+
+  rl.on("line", async (line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+    let msg;
+    try {
+      msg = JSON.parse(trimmed);
+    } catch (_) {
+      return;
+    }
+    if (msg.id === undefined || msg.id === null) return;
+
+    try {
+      if (msg.method === "initialize") {
+        send({
+          jsonrpc: "2.0",
+          id: msg.id,
+          result: {
+            protocolVersion: msg.params?.protocolVersion || "2024-11-05",
+            capabilities: { tools: {} },
+            serverInfo: { name: "reporoast", version: "1.2.0" },
+          },
+        });
+      } else if (msg.method === "ping") {
+        send({ jsonrpc: "2.0", id: msg.id, result: {} });
+      } else if (msg.method === "tools/list") {
+        send({ jsonrpc: "2.0", id: msg.id, result: { tools: MCP_TOOLS } });
+      } else if (msg.method === "tools/call") {
+        const name = msg.params?.name;
+        const args = msg.params?.arguments || {};
+        if (name === "roast_repository") {
+          const info = await resolveTargetInfo(String(args.target || "."), timeoutMs);
+          const result = scoreRepository(info.name, info.shortName, info.blobs);
+          const { starterAgents, ...compact } = result;
+          send({
+            jsonrpc: "2.0",
+            id: msg.id,
+            result: {
+              content: [{ type: "text", text: JSON.stringify(compact, null, 2) }],
+            },
+          });
+        } else if (name === "generate_agents_md") {
+          const info = await resolveTargetInfo(String(args.target || "."), timeoutMs);
+          const result = scoreRepository(info.name, info.shortName, info.blobs);
+          let note = "";
+          if (args.write_path) {
+            const dest = path.resolve(String(args.write_path));
+            fs.writeFileSync(dest, result.starterAgents, "utf8");
+            note = `\n\n<!-- Wrote starter AGENTS.md to ${dest} -->`;
+          }
+          send({
+            jsonrpc: "2.0",
+            id: msg.id,
+            result: {
+              content: [{ type: "text", text: result.starterAgents + note }],
+            },
+          });
+        } else if (name === "get_deep_audit_and_pack") {
+          const repoNote = args.repo ? ` for ${args.repo}` : "";
+          const text = [
+            `# RepoRoast — Production Agent Engineering Pack & Custom Deep Audit${repoNote}`,
+            ``,
+            `- **Web Scanner & Instant Download:** https://jtamanas.github.io/reporoast/?utm_source=mcp`,
+            `- **Sample $9 Deep Audit (sindresorhus/ky v2.2.0):** https://jtamanas.github.io/reporoast/reports/sample-ky.html`,
+            `- **1-Click Stripe Checkout ($3 Shot / $5 Pack+Backer Link / $9 Repo Audit / $15 Full Cup):** https://buy.stripe.com/bfZu5kF9H25r7cC8gIcbsc00`,
+            ``,
+            `Operated autonomously by an AI agent running the 11-day Espresso Run challenge (Oct 31 – Nov 11, 2026) to earn enough verified revenue to buy and ship one porcelain espresso cup for John Tamanas.`,
+          ].join("\n");
+          send({
+            jsonrpc: "2.0",
+            id: msg.id,
+            result: { content: [{ type: "text", text }] },
+          });
+        } else {
+          send({
+            jsonrpc: "2.0",
+            id: msg.id,
+            error: { code: -32601, message: `Unknown tool: ${name}` },
+          });
+        }
+      } else {
+        send({
+          jsonrpc: "2.0",
+          id: msg.id,
+          error: { code: -32601, message: `Method not found: ${msg.method}` },
+        });
+      }
+    } catch (err) {
+      send({
+        jsonrpc: "2.0",
+        id: msg.id,
+        result: {
+          isError: true,
+          content: [{ type: "text", text: `Error: ${err.message || String(err)}` }],
+        },
+      });
+    }
+  });
+}
+
 async function main() {
   let opts;
   try {
@@ -294,30 +474,18 @@ async function main() {
     process.exit(EXIT_OK);
   }
 
+  if (opts.mcp) {
+    runMcpServer(opts.timeoutMs);
+    return;
+  }
+
   if (!opts.target) {
-    process.stderr.write("Error: Missing <target>. Pass '.' for current directory or 'owner/repo'. Run 'reporoast --help'.\n");
+    process.stderr.write("Error: Missing <target>. Pass '.' for current directory, 'owner/repo', or '--mcp'. Run 'reporoast --help'.\n");
     process.exit(EXIT_USAGE);
   }
 
   try {
-    let targetInfo;
-    if (opts.target === "." || opts.target.startsWith("./") || opts.target.startsWith("/") || fs.existsSync(opts.target)) {
-      const resolved = path.resolve(opts.target);
-      if (!fs.existsSync(resolved) || !fs.statSync(resolved).isDirectory()) {
-        process.stderr.write(`Error: Local directory not found: ${resolved}\n`);
-        process.exit(EXIT_NOT_FOUND);
-      }
-      const blobs = walkLocalDir(resolved);
-      targetInfo = { name: resolved, shortName: path.basename(resolved), blobs };
-    } else {
-      const slug = parseGithubSlug(opts.target);
-      if (!slug) {
-        process.stderr.write(`Error: Target '${opts.target}' is neither an existing directory nor a valid 'owner/repo' slug.\n`);
-        process.exit(EXIT_USAGE);
-      }
-      targetInfo = await fetchGithubTree(slug, opts.timeoutMs);
-    }
-
+    const targetInfo = await resolveTargetInfo(opts.target, opts.timeoutMs);
     const result = scoreRepository(targetInfo.name, targetInfo.shortName, targetInfo.blobs);
 
     if (opts.writeAgents) {
